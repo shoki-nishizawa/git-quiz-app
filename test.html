@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gitコマンド クイズアプリ (見直し機能付き)</title>
+    <style>
+        /* 2. CSSスタイル */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); }
+        h1 { color: #e44d26; text-align: center; margin-bottom: 25px; }
+        .quiz-area, .results-area { border: 1px solid #ddd; padding: 25px; border-radius: 8px; margin-top: 20px; }
+        .question-text { font-size: 1.2em; font-weight: bold; margin-bottom: 15px; border-left: 5px solid #e44d26; padding-left: 10px; }
+        .options label { display: block; margin: 10px 0; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; border-radius: 5px; cursor: pointer; transition: background-color 0.2s; }
+        .options label:hover { background-color: #f0f0f0; }
+        button { padding: 10px 20px; margin-top: 20px; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; transition: background-color 0.2s; }
+        
+        /* ボタンの色の定義 */
+        #start-quiz-btn, #next-question-btn[data-action="check"] { background-color: #5cb85c; }
+        #next-question-btn[data-action="next"] { background-color: #007bff; }
+        #restart-quiz-btn { background-color: #e44d26; }
+        #review-quiz-btn { background-color: #f0ad4e; } /* 見直しボタンは黄色系 */
+
+        button:hover:not(:disabled) { opacity: 0.8; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        /* 即時フィードバック用のスタイル */
+        #feedback-area { margin-top: 20px; padding: 15px; border-radius: 5px; }
+        .feedback-correct { background-color: #e6ffe6; border: 1px solid #4cae4c; }
+        .feedback-incorrect { background-color: #ffe6e6; border: 1px solid #d9534f; }
+        .explanation { margin-top: 10px; font-style: italic; color: #333; }
+
+        .difficulty { font-size: 0.9em; color: #888; float: right; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛠️ Gitコマンド クイズアプリ</h1>
+
+        <div id="start-screen" class="quiz-area">
+            <p style="text-align: center;">チェックリストに基づく全100問のクイズです。<br>1周10問、ランダムに出題されます。（難易度：超初〜高）</p>
+            <button id="start-quiz-btn" style="display: block; width: 100%;">クイズ開始 (10問)</button>
+        </div>
+
+        <div id="quiz-screen" class="hidden">
+            <p>問題 <span id="current-q-num">1</span> / <span id="total-q-num">10</span> <span id="quiz-mode-text" style="color:#f0ad4e; font-weight:bold;"></span></p>
+            <div class="quiz-area">
+                <p class="question-text" id="question-text"></p>
+                <div class="options" id="options-container">
+                    </div>
+                
+                <div id="feedback-area" class="hidden">
+                    <p style="font-size: 1.1em;"><strong id="feedback-result"></strong></p>
+                    <p id="correct-answer-display"></p>
+                    <div class="explanation" id="feedback-explanation"></div>
+                </div>
+
+                <button id="next-question-btn" data-action="check" disabled>解答する</button>
+            </div>
+        </div>
+
+        <div id="results-screen" class="hidden">
+            <h2>🎉 クイズ終了</h2>
+            <p>あなたの最終スコア：<span id="score-text"></span></p>
+            
+            <button id="review-quiz-btn" class="hidden" style="display: block; width: 100%; margin-top: 15px;">間違えた問題を見直す (0問)</button>
+            <button id="restart-quiz-btn" style="display: block; width: 100%; margin-top: 10px;">もう一度挑戦する (新しい10問)</button>
+        </div>
+    </div>
+
+    <script>
+        const ALL_QUESTIONS = [
+            // 1. ファイル状態
+            { id: 1, difficulty: "中", question: "Gitで管理されているファイルのうち、変更は加えたが`git add`していない状態を何と呼びますか？", options: ["コミット済み", "ステージ済み", "修正済み (Modified)", "未追跡"], answerIndex: 2, explanation: "以前コミットされたファイルを編集したが、まだステージングエリアに追加していない状態です。`git status`ではModifiedと表示されます。" },
+            
+            // 2. コンフリクト
+            { id: 2, difficulty: "中", question: "マージやプル時に、Gitが**同じファイルの同じ行**の変更を自動解決できない状態を何と呼びますか？", options: ["デタッチドHEAD", "コンフリクト", "ブランチの乖離", "リモートエラー"], answerIndex: 1, explanation: "複数のブランチで同一箇所の変更があり、Gitがどちらを優先すべきか判断できないときに発生します。" },
+            
+            // 3. ステージ追加
+            { id: 3, difficulty: "中", question: "変更をステージングエリアに追加するコマンドは？", options: ["git commit <ファイル名>", "git init", "git add <ファイル名>", "git status"], answerIndex: 2, explanation: "`git add`は、作業ディレクトリの変更をコミットの準備領域（ステージングエリア）に移動させます。" },
+            
+            // 4. ブランチ作成
+            { id: 4, difficulty: "中", question: "`feature/new`というブランチを新規作成するコマンドはどれですか？", options: ["git checkout feature/new", "git branch feature/new", "git merge feature/new", "git switch feature/new"], answerIndex: 1, explanation: "`git branch <ブランチ名>`はブランチを作成しますが、作業ブランチの切り替えは行いません。" },
+            
+            // 5. ローカルブランチ削除
+            { id: 5, difficulty: "中", question: "ローカルリポジトリでマージ済みのブランチを**安全に**削除するコマンドは？", options: ["git branch -D <ブランチ名>", "git branch -d <ブランチ名>", "git delete <ブランチ名>", "git branch -r <ブランチ名>"], answerIndex: 1, explanation: "`-d`オプションは、削除対象のブランチがマージ済みであることを確認してから削除します。" },
+            
+            // 6. 現在ブランチ確認
+            { id: 6, difficulty: "中", question: "現在、自分がどのブランチで作業しているかを確認するコマンドは？", options: ["git log", "git status", "git check", "git branch"], answerIndex: 3, explanation: "`git branch`を実行すると、現在作業中のブランチ名にアスタリスク (`*`) が付きます。" },
+            
+            // 7. 全ブランチ表示
+            { id: 7, difficulty: "中", question: "リモートブランチを含む、すべてのブランチの一覧を表示するコマンドは？", options: ["git branch", "git branch -l", "git branch -r", "git branch -a"], answerIndex: 3, explanation: "`-a` (all) オプションはローカルとリモートの全ブランチを表示します。" },
+            
+            // 8. ブランチ切替
+            { id: 8, difficulty: "中", question: "既存の`hotfix`ブランチに切り替えるコマンドは？", options: ["git checkout hotfix", "git branch hotfix", "git reset hotfix", "git pull hotfix"], answerIndex: 0, explanation: "`git checkout hotfix`または`git switch hotfix`で作業ブランチを切り替えます。`switch`は新しい推奨コマンドです。" },
+            
+            // 9. クローン
+            { id: 9, difficulty: "中", question: "リモートリポジトリをローカル環境にダウンロード（クローン）するコマンドは？", options: ["git pull <URL>", "git fetch <URL>", "git clone <URL>", "git init <URL>"], answerIndex: 2, explanation: "`git clone`はリモートリポジトリ全体を作業ディレクトリごとコピーします。" },
+            
+            // 10. コミット
+            { id: 10, difficulty: "中", question: "ステージングされた変更をローカルリポジトリに記録するためのコマンドは？", options: ["git add -m \"コメント\"", "git push -m \"コメント\"", "git log -m \"コメント\"", "git commit -m \"コメント\""], answerIndex: 3, explanation: "`git commit`でステージングエリアの内容がスナップショットとして履歴に記録されます。" },
+            
+            // 11. リモート取得
+            { id: 11, difficulty: "中", question: "リモートリポジトリの最新の変更内容を取得するコマンドは？（**ローカル統合なし**）", options: ["git pull", "git push", "git fetch", "git rebase"], answerIndex: 2, explanation: "`git fetch`はリモートのデータを取得しますが、現在のローカルブランチに自動でマージはしません。" },
+            
+            // 12. リポジトリ初期化
+            { id: 12, difficulty: "中", question: "現在のディレクトリをGitリポジトリとして初期化するコマンドは？", options: ["git start", "git new", "git init", "git setup"], answerIndex: 2, explanation: "`git init`を実行すると、そのディレクトリ内にGitの管理に必要なファイル群を作成します。" },
+            
+            // 13. 初期化時のディレクトリ
+            { id: 13, difficulty: "中", question: "リポジトリが初期化された際に作成される隠しディレクトリ名は？", options: [".repo", ".git", ".config", ".vcs"], answerIndex: 1, explanation: "Gitのすべての履歴、設定、オブジェクトデータが格納されるディレクトリです。" },
+            
+            // 14. 履歴閲覧
+            { id: 14, difficulty: "中", question: "Gitのコミット履歴を閲覧するコマンドは？", options: ["git status", "git diff", "git show", "git log"], answerIndex: 3, explanation: "`git log`はコミットハッシュ、作者、日付、メッセージなどの履歴情報を表示します。" },
+            
+            // 15. 変更統合
+            { id: 15, difficulty: "中", question: "現在作業中のブランチに、任意のブランチ（例: feature）の変更内容を統合するコマンドは？", options: ["git rebase feature", "git pull feature", "git merge feature", "git push feature"], answerIndex: 2, explanation: "`git merge`は、別のブランチの変更を取り込み、新しいマージコミットを作成します。" },
+            
+            // 16. リモート変更取り込み (Pull)
+            { id: 16, difficulty: "中", question: "リモートリポジトリの変更内容をローカルリポジトリに取り込むコマンドは？ (fetchとmergeを同時に行う)", options: ["git fetch", "git merge", "git push", "git pull"], answerIndex: 3, explanation: "`git pull`は、通常 `git fetch` の後に `git merge` を行うのと同じ効果があります。" },
+            
+            // 17. リモートブランチ削除
+            { id: 17, difficulty: "中", question: "リモートリポジトリのブランチ（例: feature/old）を削除するコマンドは？", options: ["git push origin --delete feature/old", "git branch -dr feature/old", "git remote rm feature/old", "git remove origin feature/old"], answerIndex: 0, explanation: "リモートへの削除要求は、`git push`コマンドに`-d`または`--delete`オプションを付けて行います。" },
+            
+            // 18. ローカルをリモートに反映
+            { id: 18, difficulty: "中", question: "ローカルリポジトリの修正内容を「リモートリポジトリのmainブランチ」に反映するコマンドは？", options: ["git pull origin main", "git fetch origin main", "git push origin main", "git commit origin main"], answerIndex: 2, explanation: "`git push`はローカルのコミットを指定したリモートブランチにアップロードします。" },
+            
+            // 19. 全ファイルの状態確認
+            { id: 19, difficulty: "中", question: "リポジトリの現在の状態（修正済み、ステージ済み、未追跡）を確認するコマンドは？", options: ["git diff", "git log", "git show", "git status"], answerIndex: 3, explanation: "作業ディレクトリ、ステージングエリア、最後のコミットの状態を比較し、現在のリポジトリの状態を報告します。" },
+            
+            // 20. コミット/ブランチの作成・切替
+            { id: 20, difficulty: "高", question: "新規ブランチ`dev`を作成し、同時にそのブランチに切り替えるコマンドは？", options: ["git branch dev; git checkout dev", "git checkout -b dev", "git merge dev", "git switch -a dev"], answerIndex: 1, explanation: "`-b` (checkout) または `-c` (switch) はブランチ作成と切り替えを同時に行います。" },
+            
+            // 21. コミット履歴の整形
+            { id: 21, difficulty: "高", question: "複数回のコミットをまとめて一つのコミットに整理し、履歴を線形化するために使用するコマンドは？", options: ["git merge --squash", "git rebase -i HEAD~n", "git amend -all", "git cherry-pick --all"], answerIndex: 1, explanation: "対話型リベース (`-i`) を使うことで、コミットの編集、結合 (squash)、削除などが可能です。" },
+            
+            // 22. 特定コミットの取り込み
+            { id: 22, difficulty: "高", question: "他のブランチの**特定のコミット一つだけ**を、現在のブランチに取り込むためのコマンドは？", options: ["git merge <commit_hash>", "git rebase <commit_hash>", "git cherry-pick <commit_hash>", "git pull <commit_hash>"], answerIndex: 2, explanation: "`git cherry-pick`は、特定のコミットが導入した変更のみを現在のブランチに適用します。" },
+            
+            // 23. 直前コミットの修正
+            { id: 23, difficulty: "高", question: "直前のコミットメッセージを修正し、必要であればステージングエリアの内容も含めてコミットをやり直すコマンドは？", options: ["git reset --soft HEAD^", "git revert HEAD", "git commit --amend", "git rebase -i HEAD~1"], answerIndex: 2, explanation: "`git commit --amend`は直前のコミットを「上書き」し、ハッシュ値が変わる新しいコミットを作成することで履歴を修正します。" },
+            
+            // 24. 一時退避
+            { id: 24, difficulty: "高", question: "未コミットの変更を一時的に退避させ、別のブランチで緊急作業を行うためのコマンドは？", options: ["git stash", "git reset HEAD", "git clean -f", "git checkout --patch"], answerIndex: 0, explanation: "`git stash`は、作業ディレクトリとステージングエリアの変更を一時的に保存し、作業ディレクトリをクリーンな状態に戻します。" },
+            
+            // 25. リベース
+            { id: 25, difficulty: "高", question: "現在のブランチのコミットを、指定したブランチ（例: main）の**先端に付け替える**コマンドは？", options: ["git merge main", "git pull main", "git rebase main", "git reset main"], answerIndex: 2, explanation: "履歴を線形化し、マージコミットを発生させずに変更を統合する手法です。" },
+            
+            // 26. リモート追跡ブランチ
+            { id: 26, difficulty: "高", question: "`git branch -a`で表示される`remotes/origin/main`のようなブランチの正式名称は？", options: ["リモートコピー", "リモート追跡ブランチ (Remote-tracking branch)", "ローカル追跡ブランチ", "ミラーブランチ"], answerIndex: 1, explanation: "リモートリポジトリのブランチの最新位置を示すローカルの参照です。変更は`git fetch`でのみ更新されます。" },
+            
+            // 27. ファイルの復元
+            { id: 27, difficulty: "高", question: "既にコミットされているファイル`config.js`を、直前のコミットの状態に戻すコマンドは？", options: ["git reset config.js", "git revert config.js", "git checkout HEAD config.js", "git clean -f config.js"], answerIndex: 2, explanation: "特定のファイルを作業ディレクトリ内の特定のコミットの状態に戻すことができます。`HEAD`は最新コミットを指します。" },
+            
+            // 28. ステージングの取り消し
+            { id: 28, difficulty: "高", question: "ステージングエリアに追加した変更を、**作業ディレクトリに残したまま**ステージングを取り消すコマンドは？", options: ["git reset --hard", "git reset HEAD <ファイル名>", "git revert HEAD", "git clean -f"], answerIndex: 1, explanation: "`git reset HEAD`（デフォルトは`--mixed`）は、ファイルの状態を「ステージ済み」から「修正済み」に戻します。" },
+            
+            // 29. コミットの取り消し (公開前)
+            { id: 29, difficulty: "高", question: "リモートにプッシュしていない直前のコミットを取り消し、変更を作業ディレクトリに戻すコマンドは？", options: ["git reset --hard HEAD^", "git revert HEAD", "git reset HEAD^", "git checkout HEAD^"], answerIndex: 2, explanation: "`HEAD^`は一つ前のコミットを指します。デフォルトの`git reset`は`--mixed`で、コミットを取り消し、変更は作業ディレクトリに残します。" },
+            
+            // 30. タグの作成
+            { id: 30, difficulty: "高", question: "現在のコミットに`v1.0.0`という**軽量タグ**を付けるコマンドは？", options: ["git tag -a v1.0.0", "git tag v1.0.0", "git tag -m v1.0.0", "git tag --new v1.0.0"], answerIndex: 1, explanation: "タグは、特定のコミットに永続的な名前を付けるために使用されます。" },
+            
+            // 31. リモートの追加
+            { id: 31, difficulty: "高", question: "GitHub上のリポジトリを`upstream`という名前でローカルリポジトリに追加するコマンドは？", options: ["git remote add upstream <URL>", "git clone --remote upstream <URL>", "git push upstream <URL>", "git remote setup upstream <URL>"], answerIndex: 0, explanation: "複数のリモートリポジトリを管理するために使います。" },
+            
+            // 32. 設定確認
+            { id: 32, difficulty: "高", question: "Gitのすべての設定（ユーザー名、メールアドレスなど）を確認するコマンドは？", options: ["git config --show", "git status --verbose", "git config --list", "git settings"], answerIndex: 2, explanation: "`--list`オプションは、システム、グローバル、ローカルすべての設定値を一覧表示します。" },
+            
+            // 33. 無視ファイル指定
+            { id: 33, difficulty: "高", question: "Gitの管理対象から除外したいファイルやディレクトリを指定するためのファイル名は？", options: [".gitconfig", ".gitexclude", ".gitignore", ".gitfile"], answerIndex: 2, explanation: "このファイルに記述されたパターンに一致するファイルは、未追跡ファイルとして表示されなくなります。" },
+            
+            // 34. リモート情報の表示
+            { id: 34, difficulty: "高", question: "現在設定されているリモートリポジトリの名前とURLを確認するコマンドは？", options: ["git remote", "git remote -v", "git status -r", "git config remote"], answerIndex: 1, explanation: "`git remote -v`で詳細な情報を表示します。" },
+            
+            // 35. 強制上書き
+            { id: 35, difficulty: "高", question: "リモートリポジトリの内容で、ローカルの作業内容を**強制的に**上書きする一連のコマンドは？", options: ["git pull --force", "git fetch --all; git reset --hard origin/main", "git revert --hard origin/main", "git checkout origin/main"], answerIndex: 1, explanation: "`fetch`でリモート最新を取得し、`reset --hard`でローカルの履歴と作業中の変更をすべて破棄しリモートに合わせます。" },
+            
+            // 36. ブランチ作成/追跡設定
+            { id: 36, difficulty: "高", question: "リモート追跡ブランチ`origin/new-feature`を基に、ローカルブランチを作成し、追跡設定も行うコマンドは？", options: ["git checkout -t origin/new-feature", "git branch --track origin/new-feature", "git push --set-upstream origin/new-feature", "git switch -u origin/new-feature"], answerIndex: 0, explanation: "`-t` (track) オプションで、ローカルブランチとリモートブランチを関連付けます。" },
+            
+            // 37. リモートからの強制プッシュ
+            { id: 37, difficulty: "高", question: "ローカルの履歴をリベースなどで書き換えた後、リモートへ**強制的に**プッシュするコマンドは？", options: ["git push -f", "git push --amend", "git push --force-merge", "git push --replace"], answerIndex: 0, explanation: "強制プッシュは履歴を上書きするため危険ですが、`--force-with-lease`はより安全性が高いです。" },
+            
+            // 38. 一時退避の適用
+            { id: 38, difficulty: "高", question: "`git stash`で退避させた変更を、**スタッシュリストから削除せず**に作業ディレクトリに戻すコマンドは？", options: ["git stash pop", "git stash drop", "git stash apply", "git stash clear"], answerIndex: 2, explanation: "`apply`は適用のみでスタッシュリストに残します。`pop`は適用後に削除します。" },
+            
+            // 39. 直前コミットの取り消し (完全削除)
+            { id: 39, difficulty: "高", question: "公開前の直前コミットを取り消し、作業ディレクトリの変更も**破棄**するコマンドは？", options: ["git reset --soft HEAD^", "git revert HEAD", "git reset --hard HEAD^", "git clean -f"], answerIndex: 2, explanation: "`--hard`オプションは、コミット履歴だけでなく、作業中の変更も完全に消去します。" },
+            
+            // 40. コミットの取り消し (履歴残し)
+            { id: 40, difficulty: "高", question: "既にプッシュされたコミットを取り消し、その打ち消しコミットを履歴に残すコマンドは？", options: ["git reset --soft", "git revert <commit_hash>", "git cherry-pick", "git rebase -i"], answerIndex: 1, explanation: "`git revert`は元のコミットを打ち消す新しいコミットを作成し、公開された履歴の整合性を保ちます。" },
+            
+            // 41. git diffの対象
+            { id: 41, difficulty: "高", question: "`git diff`を**引数なし**で実行した場合、比較対象となるのはどの2つの領域ですか？", options: ["ステージングとローカルリポジトリ", "リモートとローカルリポジトリ", "作業ディレクトリとステージングエリア", "作業ディレクトリとローカルリポジトリ"], answerIndex: 2, explanation: "ステージングエリアに追加されていない、現在作業中の変更を確認できます。" },
+            
+            // 42. git diffの対象 (ステージング)
+            { id: 42, difficulty: "高", question: "ステージングエリアとローカルリポジトリ（最後のコミット）を比較するコマンドは？", options: ["git diff --working", "git diff --staged", "git diff HEAD", "git diff --cache"], answerIndex: 1, explanation: "`--staged`または`--cached`は、次にコミットされる内容（ステージングエリアの内容）を確認できます。" },
+            
+            // 43. リモート名
+            { id: 43, difficulty: "高", question: "git cloneを実行した際に、自動で設定されるリモートリポジトリのデフォルト名は？", options: ["master", "main", "repo", "origin"], answerIndex: 3, explanation: "リモートを操作する際のデフォルトのニックネームです。" },
+            
+            // 44. 未追跡ファイルの削除
+            { id: 44, difficulty: "高", question: "未追跡ファイル（Untracked files）を**強制的に**削除し、作業ディレクトリをクリーンにするコマンドは？", options: ["git reset --hard", "git clean -f", "git remove -f", "git rm -f"], answerIndex: 1, explanation: "Git管理下にない不要なファイルを削除する際に使われます。" },
+            
+            // 45. ブランチの強制削除
+            { id: 45, difficulty: "高", question: "未マージの変更があるブランチを、警告を無視して強制的に削除するコマンドは？", options: ["git branch -d <ブランチ名>", "git branch -D <ブランチ名>", "git remove -f <ブランチ名>", "git branch --force <ブランチ名>"], answerIndex: 1, explanation: "`-D` (大文字) は、未マージの変更を失う危険があっても強制的に削除します。" },
+            
+            // 46. コミットのハッシュ
+            { id: 46, difficulty: "高", question: "Gitがコミット内容を識別するために使用する、一意の40文字の文字列の名称は？", options: ["SHA-1ハッシュ", "MD5ハッシュ", "UUID", "コミットID"], answerIndex: 0, explanation: "コミットの内容、親、作成者などの情報から生成されます。" },
+            
+            // 47. git pullの挙動設定
+            { id: 47, difficulty: "高", question: "設定により`git pull`で`git merge`ではなく、**自動的にリベース**を行うようにするための設定は？", options: ["git config pull.merge false", "git config pull.rebase true", "git config rebase.auto true", "git config pull.force rebase"], answerIndex: 1, explanation: "この設定により、`pull`時の履歴がマージコミットを含まない線形なものになります。" },
+            
+            // 48. ログの整形
+            { id: 48, difficulty: "高", question: "`git log`の表示形式を1行に要約して表示するためのオプションは？", options: ["--compact", "--oneline", "--short", "--summary"], answerIndex: 1, explanation: "短いハッシュとコミットメッセージをコンパクトに表示し、履歴を見やすくします。" },
+            
+            // 49. 履歴の確認 (Reflog)
+            { id: 49, difficulty: "高", question: "どのブランチからも到達できない孤立したコミットや、過去のブランチの参照などを確認できるGitの機能は？", options: ["git history", "git reflog", "git gc", "git restore"], answerIndex: 1, explanation: "ローカルでのHEADやブランチの移動をすべて記録しており、履歴操作の失敗時に非常に有用です。" },
+            
+            // 50. 空のコミット
+            { id: 50, difficulty: "高", question: "変更がない状態でも、コミットを作成したい場合に使うオプションは？", options: ["--allow-empty", "--force-commit", "--empty-commit", "--no-changes"], answerIndex: 0, explanation: "リリースの区切りや、動作確認用など、意図的に内容のないコミットを作成したい場合に指定します。" },
+            
+            // 51. ファイルの比較
+            { id: 51, difficulty: "中", question: "作業ディレクトリにあるファイルと、ステージングエリアにあるファイルを比較するコマンドは？", options: ["git diff --cached", "git diff HEAD", "git diff", "git diff --untracked"], answerIndex: 2, explanation: "`git diff`を引数なしで実行すると、作業ディレクトリとステージングエリア間の差分を表示します。" },
+            
+            // 52. ステージング済みのファイル比較
+            { id: 52, difficulty: "中", question: "ステージングエリアにあるファイルと、最後のコミット（HEAD）のファイルを比較するコマンドは？", options: ["git diff", "git diff --staged", "git diff --worktree", "git diff HEAD"], answerIndex: 1, explanation: " `--staged` または `--cached` オプションを使用すると、次にコミットされる内容を確認できます。" },
+            
+            // 53. コミットされていない変更の破棄
+            { id: 53, difficulty: "中", question: "特定のファイル（例: `index.html`）の、**コミットされていない作業ディレクトリの変更**を破棄するコマンドは？", options: ["git reset --hard", "git clean -f index.html", "git checkout -- index.html", "git revert index.html"], answerIndex: 2, explanation: "`git checkout -- <ファイル名>`は、そのファイルを最新のコミット（またはステージングエリア）の状態に戻します。" },
+
+            // 54. ステージングの取り消し (全ファイル)
+            { id: 54, difficulty: "中", question: "ステージングエリアに追加したすべての変更を、**作業ディレクトリに残したまま**ステージングを取り消すコマンドは？", options: ["git reset HEAD", "git reset --soft HEAD^", "git checkout --all", "git revert --all"], answerIndex: 0, explanation: "`git reset HEAD`は、デフォルトで`--mixed`として動作し、ステージングのみを取り消します。" },
+            
+            // 55. リモート名の変更
+            { id: 55, difficulty: "中", question: "リモートリポジトリの名前を`origin`から`upstream`に変更するコマンドは？", options: ["git remote rename origin upstream", "git remote change origin upstream", "git remote modify origin upstream", "git remote -m origin upstream"], answerIndex: 0, explanation: "`git remote rename <旧名> <新名>`でリモートの名前を変更できます。" },
+            
+            // 56. リモートの削除
+            { id: 56, difficulty: "中", question: "設定されているリモートリポジトリ（例: `upstream`）を削除するコマンドは？", options: ["git remote delete upstream", "git remote rm upstream", "git remote reset upstream", "git remote remove upstream"], answerIndex: 1, explanation: "`git remote rm <リモート名>` または `git remote remove <リモート名>` でリモート設定を解除します。" },
+            
+            // 57. 直前コミットの編集
+            { id: 57, difficulty: "中", question: "直前のコミットメッセージを修正したいときに使うコマンドは？", options: ["git log --edit", "git commit --reword", "git commit --amend", "git change -m"], answerIndex: 2, explanation: "`git commit --amend`は、直前のコミットを新しいコミットで置き換えることで、メッセージや内容を修正できます。" },
+            
+            // 58. ブランチ作成と移動
+            { id: 58, difficulty: "中", question: "新しいブランチ`dev`を作成し、同時にそのブランチに切り替える（移動する）コマンドは？", options: ["git branch dev; git move dev", "git checkout -b dev", "git switch dev -n", "git new branch dev"], answerIndex: 1, explanation: "`git checkout -b <ブランチ名>`は、ブランチ作成とチェックアウトを同時に行います。新しい推奨コマンドは`git switch -c`です。" },
+            
+            // 59. タグの一覧表示
+            { id: 59, difficulty: "中", question: "作成されたすべてのタグを一覧で表示するコマンドは？", options: ["git tags -l", "git show tags", "git log tags", "git tag"], answerIndex: 3, explanation: "引数なしの`git tag`は、リポジトリ内のすべてのタグ名をリストアップします。" },
+            
+            // 60. タグの削除 (ローカル)
+            { id: 60, difficulty: "中", question: "ローカルで作成したタグ（例: `v1.0.0`）を削除するコマンドは？", options: ["git tag -d v1.0.0", "git tag -rm v1.0.0", "git delete tag v1.0.0", "git tag --delete v1.0.0"], answerIndex: 0, explanation: "タグの削除には`-d`または`--delete`オプションを使用します。" },
+
+            // 61. マージの種類 (Fast-forward)
+            { id: 61, difficulty: "中", question: "マージ元のブランチがマージ先のブランチの先端にある場合、コミット履歴を残さずにポインタを移動させるだけのマージ方式は？", options: ["Three-way merge", "Squash merge", "Fast-forward merge", "Rebase merge"], answerIndex: 2, explanation: "履歴が分岐していない場合に発生し、マージコミットを作成しません。" },
+            
+            // 62. マージの種類 (No-ff)
+            { id: 62, difficulty: "中", question: "Fast-forwardマージが可能な場合でも、**必ずマージコミットを作成**するオプションは？", options: ["git merge --squash", "git merge --no-ff", "git merge --amend", "git merge --rebase"], answerIndex: 1, explanation: "履歴に明確な統合ポイントを残すために使用されます。" },
+            
+            // 63. 特定のコミットの差分
+            { id: 63, difficulty: "中", question: "特定のコミット（例: `abcdefg`）が導入した変更内容（パッチ）を確認するコマンドは？", options: ["git show abcdefg", "git log -p abcdefg", "git diff abcdefg", "git patch abcdefg"], answerIndex: 0, explanation: "`git show <コミットハッシュ>`は、そのコミットのメタデータと変更された差分を表示します。" },
+            
+            // 64. 履歴の表示制限
+            { id: 64, difficulty: "中", question: "最新のコミットを**3つだけ**表示するように`git log`の表示を制限するオプションは？", options: ["-n 3", "--top 3", "-3", "--limit 3"], answerIndex: 0, explanation: " `-n <数値>`または`--max-count=<数値>`で表示するコミット数を制限できます。" },
+            
+            // 65. コミットの検索
+            { id: 65, difficulty: "中", question: "コミットメッセージに特定のキーワード（例: `BUGFIX`）を含むコミットを検索するオプションは？", options: ["git log --find BUGFIX", "git log --message BUGFIX", "git log --grep BUGFIX", "git log --search BUGFIX"], answerIndex: 2, explanation: "`--grep`オプションは、正規表現を使ってコミットメッセージをフィルタリングします。" },
+
+            // 66. ファイルの追跡開始
+            { id: 66, difficulty: "中", question: "未追跡のファイル（Untracked file）を初めてGitの追跡対象に加えるコマンドは？", options: ["git start tracking <ファイル名>", "git add <ファイル名>", "git track <ファイル名>", "git init <ファイル名>"], answerIndex: 1, explanation: "ステージングエリアに追加する`git add`が、同時にファイルの追跡を開始します。" },
+            
+            // 67. ブランチの追跡設定
+            { id: 67, difficulty: "中", question: "ローカルブランチをリモートブランチ（例: `origin/feature`）に紐付けて追跡設定を行うコマンドは？", options: ["git branch --set-tracking origin/feature", "git push --set-upstream origin feature", "git branch --track origin/feature", "git remote -u feature origin"], answerIndex: 1, explanation: "ローカルコミットの最初の`git push`時に`-u`または`--set-upstream`で設定するのが一般的です。" },
+            
+            // 68. コミットされていない変更の確認
+            { id: 68, difficulty: "中", question: "作業ディレクトリの変更内容のうち、**まだステージングされていない部分**を確認するコマンドは？", options: ["git diff --staged", "git status --verbose", "git diff", "git log --changes"], answerIndex: 2, explanation: "引数なしの`git diff`は、作業ディレクトリとステージングエリア間の差分を表示します。" },
+            
+            // 69. リモートタグのプッシュ
+            { id: 69, difficulty: "中", question: "ローカルで作成したタグ（例: `v2.0`）をリモートリポジトリに反映させるためのコマンドは？", options: ["git tag --push origin v2.0", "git push origin v2.0", "git push --tags", "git remote push v2.0"], answerIndex: 2, explanation: "タグはコミットと異なり、`--tags`オプションを付けてプッシュする必要があります（または個別にタグ名を指定してプッシュ）。" },
+            
+            // 70. ユーザー情報の確認
+            { id: 70, difficulty: "中", question: "現在のGitのユーザー名（`user.name`）を**グローバル設定**から確認するコマンドは？", options: ["git config --global user.name", "git config --show user.name", "git user.name --list", "git config user.name"], answerIndex: 0, explanation: "`--global`オプションで、全リポジトリに適用される設定値を確認できます。" },
+
+            // 71. リポジトリ初期化
+            { id: 71, difficulty: "初", question: "現在のディレクトリをGitリポジトリとして使い始めるために、最初に実行するコマンドは？", options: ["git start", "git setup", "git init", "git create"], answerIndex: 2, explanation: "`git init`コマンドを実行することで、そのディレクトリがGitの管理下に置かれます。" },
+            
+            // 72. クローン
+            { id: 72, difficulty: "初", question: "GitHubなどのリモートリポジトリ全体を、ローカルにダウンロード（コピー）してくるコマンドは？", options: ["git download", "git pull", "git clone", "git fetch"], answerIndex: 2, explanation: "`git clone`は、リモートリポジトリのすべての履歴を含めてローカルにコピーを作成します。" },
+            
+            // 73. 状態確認
+            { id: 73, difficulty: "初", question: "作業中のファイルが「修正済み」「ステージ済み」「未追跡」のどれにあたるかなど、リポジトリの現状を確認するコマンドは？", options: ["git check", "git log", "git status", "git diff"], answerIndex: 2, explanation: "`git status`は、作業ディレクトリとステージングエリアの状態を分かりやすく教えてくれます。" },
+            
+            // 74. ステージ追加
+            { id: 74, difficulty: "初", question: "変更したファイル（例: `style.css`）を、次にコミットする内容として準備する（ステージングエリアに追加する）コマンドは？", options: ["git commit style.css", "git save style.css", "git add style.css", "git push style.css"], answerIndex: 2, explanation: "`git add`は、変更をステージングエリア（コミット準備領域）に移す役割があります。" },
+            
+            // 75. コミット
+            { id: 75, difficulty: "初", question: "ステージングエリアにある変更内容を、ローカルリポジトリの履歴に正式に記録するためのコマンドは？", options: ["git history", "git commit", "git record", "git apply"], answerIndex: 1, explanation: "コミットは、プロジェクトの特定時点のスナップショットを履歴として保存する操作です。" },
+            
+            // 76. コミットメッセージ
+            { id: 76, difficulty: "初", question: "コミット時に、コミットメッセージを同時に指定するためのオプションは？", options: ["-t", "-c", "-m", "-a"], answerIndex: 2, explanation: " `-m` (message) オプションを使うことで、エディタを開かずにメッセージを直接指定できます。" },
+            
+            // 77. プッシュ
+            { id: 77, difficulty: "初", question: "ローカルリポジトリで作成したコミットを、GitHubなどのリモートリポジトリにアップロードして共有するコマンドは？", options: ["git pull", "git merge", "git push", "git transfer"], answerIndex: 2, explanation: "`git push`は、ローカルのコミットをリモートに反映させます。" },
+            
+            // 78. プル
+            { id: 78, difficulty: "初", question: "リモートリポジトリにある最新の変更を、**取得してすぐにローカルブランチに統合する**コマンドは？", options: ["git fetch", "git pull", "git merge", "git update"], answerIndex: 1, explanation: "`git pull`は、`git fetch`と`git merge`を合わせた操作を一度に行います。" },
+            
+            // 79. フェッチ
+            { id: 79, difficulty: "初", question: "リモートリポジトリから最新の変更情報を取得するものの、ローカルの作業ブランチには**影響を与えない**コマンドは？", options: ["git pull", "git push", "git fetch", "git rebase"], answerIndex: 2, explanation: "`git fetch`は、リモートの最新状態をローカルに確認用に持ってくるだけです。" },
+            
+            // 80. ブランチ一覧
+            { id: 80, difficulty: "初", question: "ローカルリポジトリに存在するブランチの一覧を表示し、現在作業中のブランチに目印を付けるコマンドは？", options: ["git log", "git branch", "git list", "git show branch"], answerIndex: 1, explanation: "`git branch`はブランチの一覧を表示し、アスタリスクで現在のブランチを示します。" },
+            
+            // 81. ブランチ作成と切替
+            { id: 81, difficulty: "初", question: "新しいブランチ（例: `fix-bug`）を作成し、すぐにそのブランチに移動して作業を開始するためのオプションは？", options: ["git commit -b fix-bug", "git branch -n fix-bug", "git switch -c fix-bug", "git new fix-bug"], answerIndex: 2, explanation: "`git switch -c`または`git checkout -b`でブランチ作成と移動を同時に行えます。" },
+            
+            // 82. ブランチ切替
+            { id: 82, difficulty: "初", question: "既に存在するブランチ`main`に切り替えて、作業ブランチを変更するコマンドは？", options: ["git switch main", "git merge main", "git commit main", "git branch main"], answerIndex: 0, explanation: "`git switch <ブランチ名>`（または`git checkout <ブランチ名>`）でブランチを切り替えます。" },
+            
+            // 83. 履歴閲覧
+            { id: 83, difficulty: "初", question: "コミットの作者、日付、コミットメッセージなどの詳細な履歴を順に確認するためのコマンドは？", options: ["git status", "git show", "git log", "git history"], answerIndex: 2, explanation: "`git log`は、リポジトリのコミット履歴を時系列で表示します。" },
+            
+            // 84. ファイル状態 (Modified)
+            { id: 84, difficulty: "初", question: "Gitで**追跡されている**ファイルの内容を変更した後、`git add`をする前の状態を、Gitでは何と呼びますか？", options: ["Untracked (未追跡)", "Committed (コミット済み)", "Modified (修正済み)", "Staged (ステージ済み)"], answerIndex: 2, explanation: "ファイルを編集したものの、まだステージングエリアに追加していない状態です。" },
+            
+            // 85. ファイル状態 (Untracked)
+            { id: 85, difficulty: "初", question: "Gitリポジトリ内に新しく作成したファイルで、一度も`git add`したことがない（Gitが追跡していない）ファイルの状態を何と呼びますか？", options: ["Staged (ステージ済み)", "Modified (修正済み)", "Committed (コミット済み)", "Untracked (未追跡)"], answerIndex: 3, explanation: "この状態のファイルは、`git add`を実行するまでGitの管理対象になりません。" },
+            
+            // 86. デフォルトのリモート名
+            { id: 86, difficulty: "初", question: "`git clone`コマンドでリポジトリをコピーした際、自動的に設定されるリモートリポジトリのデフォルトの識別名（ニックネーム）は？", options: ["master", "main", "repo", "origin"], answerIndex: 3, explanation: "通常、リモートリポジトリを指す名前として`origin`が使われます。" },
+            
+            // 87. Gitの管理ディレクトリ
+            { id: 87, difficulty: "初", question: "Gitリポジトリの初期化（`git init`）によって、そのディレクトリ内に作成される、Gitのすべての情報が格納されている隠しフォルダ名は？", options: [".repo", ".config", ".git", ".vcs"], answerIndex: 2, explanation: "`.git`フォルダの中には、すべてのコミット履歴、ブランチ情報、設定などが含まれています。" },
+            
+            // 88. 管理除外ファイル
+            { id: 88, difficulty: "初", question: "ビルド生成物や一時ファイルなど、Gitの追跡対象から意図的に除外したいファイルを指定するための設定ファイル名は？", options: [".gitconfig", ".gitexclude", ".gitignore", ".gitfile"], answerIndex: 2, explanation: "このファイルに記述されたパターンに一致するファイルは、`git status`などで表示されなくなります。" },
+            
+            // 89. 最新コミットの参照
+            { id: 89, difficulty: "初", question: "現在チェックアウトしているブランチの、**最新のコミット**を指すポインタの名称は？", options: ["TAIL", "MASTER", "HEAD", "ROOT"], answerIndex: 2, explanation: "Gitでは、現在のブランチの先端（最新コミット）を`HEAD`という名前で参照します。" },
+            
+            // 90. 打ち消しコミット
+            { id: 90, difficulty: "初", question: "プッシュ済みのコミットを取り消すために、そのコミットと**逆の変更**を行う新しいコミットを作成するコマンドは？（履歴を消さない）", options: ["git reset --hard", "git amend", "git revert", "git clean"], answerIndex: 2, explanation: "`git revert`は、過去のコミットを取り消すための新しいコミットを作成し、履歴の整合性を保ちます。" },
+
+            // 91. Gitの役割
+            { id: 91, difficulty: "超初", question: "Gitが主に果たす役割として、最も適切なものはどれですか？", options: ["ファイルの圧縮と暗号化", "コードの実行環境の構築", "ファイルのバージョン管理", "サーバーへの高速なファイル転送"], answerIndex: 2, explanation: "Gitは、ファイルの変更履歴を記録し、いつでも過去の状態に戻せるようにするバージョン管理システムです。" },
+            
+            // 92. コミットの基本
+            { id: 92, difficulty: "超初", question: "Gitにおける「コミット」とは、どのような操作を指しますか？", options: ["ファイルを削除すること", "ブランチを切り替えること", "変更履歴を確定・記録すること", "リモートからファイルをダウンロードすること"], answerIndex: 2, explanation: "コミットは、ステージングエリアの内容をスナップショットとして履歴に記録する操作です。" },
+            
+            // 93. Git initの役割
+            { id: 93, difficulty: "超初", question: "新しくプロジェクトを始める際、そのフォルダをGitの管理下に置くために最初に行うコマンドは？", options: ["git start", "git clone", "git init", "git setup"], answerIndex: 2, explanation: "`git init`コマンドを実行することで、そのディレクトリがGitリポジトリとして機能するための初期設定が行われます。" },
+            
+            // 94. リモートリポジトリ
+            { id: 94, difficulty: "超初", question: "GitHubやGitLabなど、インターネット上でコードを共有・保存するために使われる場所を何と呼びますか？", options: ["ローカルドライブ", "ワークツリー", "ステージングエリア", "リモートリポジトリ"], answerIndex: 3, explanation: "リモートリポジトリは、チームでコードを共有し、バックアップを取るための遠隔地の貯蔵庫です。" },
+            
+            // 95. git addの次のステップ
+            { id: 95, difficulty: "超初", question: "`git add <ファイル名>`を実行して変更をステージングエリアに追加した次に、通常行うべき操作は？", options: ["git pull", "git push", "git commit", "git rebase"], answerIndex: 2, explanation: "ステージングエリアはコミットの準備領域なので、次は`git commit`で変更を履歴に記録します。" },
+            
+            // 96. ブランチの基本
+            { id: 96, difficulty: "超初", question: "Gitで、開発作業を隔離し、メインのコードベースに影響を与えずに新機能開発などを進めるための仕組みは？", options: ["フォルダー", "ディレクトリ", "コミット", "ブランチ"], answerIndex: 3, explanation: "ブランチは、作業履歴を分岐させ、並行して異なる作業を進めるための機能です。" },
+            
+            // 97. git statusで表示される情報
+            { id: 97, difficulty: "超初", question: "`git status`コマンドを実行したとき、通常表示される情報はどれですか？", options: ["CPUの使用率", "インターネット接続状況", "ファイルの修正状況や未追跡ファイル", "リモートリポジトリのURL"], answerIndex: 2, explanation: "`git status`は、現在の作業ディレクトリとステージングエリアの状態を分かりやすく報告します。" },
+            
+            // 98. クローンの目的
+            { id: 98, difficulty: "超初", question: "リモートリポジトリを`git clone`する最も大きな目的は？", options: ["Gitのバージョンを更新するため", "ローカルで作業を開始するため", "ファイルのバックアップを削除するため", "コミットメッセージを修正するため"], answerIndex: 1, explanation: "リモートリポジトリの内容をローカルに持ってくることで、実際にコードを編集・実行する環境を構築できます。" },
+            
+            // 99. プッシュの目的
+            { id: 99, difficulty: "超初", question: "`git push`コマンドの主な役割は？", options: ["リモートの変更をローカルに持ってくる", "ローカルのコミットをリモートに送信する", "ファイル名の変更を記録する", "ブランチの作成と切り替えを行う"], answerIndex: 1, explanation: "ローカルで記録したコミットを、他の共同作業者と共有するためにリモートリポジトリにアップロードします。" },
+            
+            // 100. Gitの必要性
+            { id: 100, difficulty: "超初", question: "チームでソフトウェア開発を行う際、Gitのようなバージョン管理システムが最も必要な理由として最も適切なものは？", options: ["パソコンの動作を軽くするため", "プログラミング言語の種類を増やすため", "複数の人が同時に安全に作業を進めるため", "コードの見た目を自動で整形するため"], answerIndex: 2, explanation: "バージョン管理システムは、誰がいつ、どのファイルを変更したかを管理し、衝突を防ぎながら共同作業を可能にします。" }
+        ];
+
+        // DOM要素の取得
+        const startScreen = document.getElementById('start-screen');
+        const quizScreen = document.getElementById('quiz-screen');
+        const resultsScreen = document.getElementById('results-screen');
+        const startQuizBtn = document.getElementById('start-quiz-btn');
+        const nextQuestionBtn = document.getElementById('next-question-btn');
+        const restartQuizBtn = document.getElementById('restart-quiz-btn');
+        const reviewQuizBtn = document.getElementById('review-quiz-btn'); // 新規追加
+        const questionText = document.getElementById('question-text');
+        const currentQNum = document.getElementById('current-q-num');
+        const totalQNum = document.getElementById('total-q-num');
+        const quizModeText = document.getElementById('quiz-mode-text');
+        const optionsContainer = document.getElementById('options-container');
+        const scoreText = document.getElementById('score-text');
+        const feedbackArea = document.getElementById('feedback-area');
+        const feedbackResult = document.getElementById('feedback-result');
+        const correctAnswerDisplay = document.getElementById('correct-answer-display');
+        const feedbackExplanation = document.getElementById('feedback-explanation');
+
+        // クイズの状態変数
+        let currentQuizSet = []; // 今回出題する問題セット
+        let currentQuestionIndex = 0;
+        let userAnswers = []; // ユーザーの回答を記録 (正誤判定結果と問題データ)
+        let isReviewMode = false; // 見直しモードかどうか
+
+        // ----------------------------------------------------
+        // イベントリスナー
+        // ----------------------------------------------------
+
+        startQuizBtn.addEventListener('click', startQuiz);
+        restartQuizBtn.addEventListener('click', startQuiz);
+        reviewQuizBtn.addEventListener('click', startReviewQuiz); // 新規追加
+
+        // ボタンの動作を切り替えるため、一括でイベントを処理
+        nextQuestionBtn.addEventListener('click', handleNextButton);
+        
+        // 選択肢のクリックで「解答する」ボタンを有効化
+        optionsContainer.addEventListener('change', () => {
+             // ボタンが「解答する」アクションの時のみ有効化
+            if (nextQuestionBtn.getAttribute('data-action') === 'check') {
+                nextQuestionBtn.disabled = false;
+            }
+        });
+
+        // ----------------------------------------------------
+        // 関数
+        // ----------------------------------------------------
+
+        /**
+         * 「解答する」と「次の問題へ」のボタンアクションを切り替えます。
+         */
+        function handleNextButton() {
+            const action = nextQuestionBtn.getAttribute('data-action');
+            if (action === 'check') {
+                checkAnswer();
+            } else if (action === 'next') {
+                goToNextQuestion();
+            }
+        }
+
+        /**
+         * 通常のクイズを開始し、ランダムな10問を選びます。
+         */
+        function startQuiz() {
+            isReviewMode = false;
+            currentQuestionIndex = 0;
+            userAnswers = [];
+
+            // 100問からランダムに10問を選択
+            const shuffled = ALL_QUESTIONS.sort(() => 0.5 - Math.random());
+            currentQuizSet = shuffled.slice(0, 10);
+            
+            setupQuizScreen();
+            loadQuestion(currentQuestionIndex);
+        }
+
+        /**
+         * 不正解だった問題だけを集めて見直しクイズを開始します。（新規追加）
+         */
+        function startReviewQuiz() {
+            // 前回の回答で不正解だった問題だけを抽出
+            const incorrectAnswers = userAnswers.filter(a => !a.isCorrect);
+            
+            if (incorrectAnswers.length === 0) {
+                alert("不正解の問題はありませんでした。");
+                return;
+            }
+            
+            isReviewMode = true;
+            currentQuestionIndex = 0;
+            // 見直しモードでは、不正解だった問題のデータを使ってセットを再構築
+            currentQuizSet = incorrectAnswers.map(a => a.questionData);
+            
+            setupQuizScreen();
+            loadQuestion(currentQuestionIndex);
+        }
+
+        /**
+         * クイズ画面の状態をリセットし、表示を整えます。
+         */
+        function setupQuizScreen() {
+            // 画面切り替え
+            startScreen.classList.add('hidden');
+            resultsScreen.classList.add('hidden');
+            quizScreen.classList.remove('hidden');
+
+            // フィードバックエリアを非表示にし、ボタンを初期状態に戻す
+            feedbackArea.classList.add('hidden');
+            nextQuestionBtn.setAttribute('data-action', 'check');
+            nextQuestionBtn.textContent = '解答する';
+            
+            // クイズモードの表示設定
+            totalQNum.textContent = currentQuizSet.length;
+            quizModeText.textContent = isReviewMode ? "【見直しモード】" : "";
+        }
+
+
+        /**
+         * 指定されたインデックスの問題を画面に表示します。
+         * @param {number} index - 表示する問題のインデックス (0-n)
+         */
+        function loadQuestion(index) {
+            const question = currentQuizSet[index];
+
+            // 状態更新
+            currentQuestionIndex = index;
+            currentQNum.textContent = index + 1;
+            nextQuestionBtn.disabled = true;
+
+            // 問題文と難易度の表示
+            questionText.innerHTML = `${question.question} <span class="difficulty">(難易度: ${question.difficulty})</span>`;
+
+            // 選択肢の生成
+            optionsContainer.innerHTML = '';
+            question.options.forEach((option, i) => {
+                const inputId = `option-${i}`;
+                const label = document.createElement('label');
+                label.setAttribute('for', inputId);
+                label.innerHTML = `<input type="radio" name="quiz-option" value="${i}" id="${inputId}"> ${option}`;
+                optionsContainer.appendChild(label);
+            });
+        }
+
+        /**
+         * ユーザーの回答をチェックし、フィードバックを表示します。
+         */
+        function checkAnswer() {
+            const selectedOption = document.querySelector('input[name="quiz-option"]:checked');
+
+            if (!selectedOption) {
+                alert("選択肢を選んでください。");
+                return;
+            }
+
+            const selectedIndex = parseInt(selectedOption.value);
+            const question = currentQuizSet[currentQuestionIndex];
+            const isCorrect = selectedIndex === question.answerIndex;
+
+            // 通常モードでのみ回答を記録
+            if (!isReviewMode) {
+                userAnswers.push({ 
+                    isCorrect: isCorrect,
+                    questionData: question
+                });
+            }
+
+            // ------------------
+            // 即時フィードバック表示
+            // ------------------
+
+            feedbackArea.classList.remove('hidden', 'feedback-correct', 'feedback-incorrect');
+            
+            // 正誤判定
+            if (isCorrect) {
+                feedbackResult.textContent = '✅ 正解です！';
+                feedbackArea.classList.add('feedback-correct');
+                correctAnswerDisplay.textContent = '';
+            } else {
+                feedbackResult.textContent = '❌ 不正解です。';
+                feedbackArea.classList.add('feedback-incorrect');
+                const correctAnswer = question.options[question.answerIndex];
+                correctAnswerDisplay.innerHTML = `<strong>正解:</strong> ${correctAnswer}`;
+            }
+
+            // 解説の表示
+            feedbackExplanation.textContent = question.explanation;
+
+            // 選択肢を無効化し、正解をハイライト
+            document.querySelectorAll('input[name="quiz-option"]').forEach(input => {
+                input.disabled = true;
+                
+                const label = input.closest('label');
+                if (parseInt(input.value) === question.answerIndex) {
+                    label.style.backgroundColor = '#d4edda'; // Greenish highlight
+                    label.style.borderColor = '#c3e6cb';
+                }
+            });
+
+
+            // ボタンを「次の問題へ」に切り替え
+            nextQuestionBtn.setAttribute('data-action', 'next');
+            nextQuestionBtn.textContent = (currentQuestionIndex < currentQuizSet.length - 1) ? '次の問題へ' : '結果を見る';
+            nextQuestionBtn.style.backgroundColor = '#007bff'; 
+            nextQuestionBtn.disabled = false;
+        }
+
+        /**
+         * 次の問題に進むか、結果を表示します。
+         */
+        function goToNextQuestion() {
+            // ボタンを初期状態に戻す
+            nextQuestionBtn.setAttribute('data-action', 'check');
+            nextQuestionBtn.textContent = '解答する';
+            nextQuestionBtn.style.backgroundColor = '#5cb85c'; 
+
+            // フィードバックエリアを非表示
+            feedbackArea.classList.add('hidden');
+            
+            // 選択肢のハイライトをリセット
+            document.querySelectorAll('.options label').forEach(label => {
+                label.style.backgroundColor = '';
+                label.style.borderColor = '';
+            });
+
+            if (currentQuestionIndex < currentQuizSet.length - 1) {
+                loadQuestion(currentQuestionIndex + 1);
+            } else {
+                showResults();
+            }
+        }
+
+        /**
+         * クイズ結果画面を表示します。
+         */
+        function showResults() {
+            quizScreen.classList.add('hidden');
+            resultsScreen.classList.remove('hidden');
+
+            const score = userAnswers.filter(a => a.isCorrect).length;
+            const totalQuestions = currentQuizSet.length;
+            scoreText.textContent = `${totalQuestions}問中 ${score}問正解です。 (${((score / totalQuestions) * 100).toFixed(0)}%)`;
+            
+            const incorrectCount = totalQuestions - score;
+
+            // 見直しボタンの設定 (通常モードでのみ集計された回答を使用)
+            if (!isReviewMode && incorrectCount > 0) {
+                reviewQuizBtn.classList.remove('hidden');
+                reviewQuizBtn.textContent = `間違えた問題を見直す (${incorrectCount}問)`;
+            } else {
+                reviewQuizBtn.classList.add('hidden');
+            }
+        }
+
+        // アプリケーションの初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 最初の画面を表示
+            startScreen.classList.remove('hidden');
+        });
+    </script>
+</body>
+</html>
