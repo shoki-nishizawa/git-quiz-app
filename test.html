@@ -369,8 +369,86 @@
             { id: 99, difficulty: "超初", question: "`git push`コマンドの主な役割は？", options: ["リモートの変更をローカルに持ってくる", "ローカルのコミットをリモートに送信する", "ファイル名の変更を記録する", "ブランチの作成と切り替えを行う"], answerIndex: 1, explanation: "ローカルで記録したコミットを、他の共同作業者と共有するためにリモートリポジトリにアップロードします。" },
             
             // 100. Gitの必要性
-            { id: 100, difficulty: "超初", question: "チームでソフトウェア開発を行う際、Gitのようなバージョン管理システムが最も必要な理由として最も適切なものは？", options: ["パソコンの動作を軽くするため", "プログラミング言語の種類を増やすため", "複数の人が同時に安全に作業を進めるため", "コードの見た目を自動で整形するため"], answerIndex: 2, explanation: "バージョン管理システムは、誰がいつ、どのファイルを変更したかを管理し、衝突を防ぎながら共同作業を可能にします。" }
+            { id: 100, difficulty: "超初", question: "チームでソフトウェア開発を行う際、Gitのようなバージョン管理システムが最も必要な理由として最も適切なものは？", options: ["パソコンの動作を軽くするため", "プログラミング言語の種類を増やすため", "複数の人が同時に安全に作業を進めるため", "コードの見た目を自動で整形するため"], answerIndex: 2, explanation: "バージョン管理システムは、誰がいつ、どのファイルを変更したかを管理し、衝突を防ぎながら共同作業を可能にします。" },
+            // --- ここから追加 (Git理解度テストの25問) ---
+    
+            // 101. (問題2より) コンフリクト
+            { id: 101, difficulty: "初", question: "Gitにおける「コンフリクト」について、正しい説明はどれですか？", options: ["複数の開発者が同じブランチで作業している状態", "ローカルリポジトリがリモートリポジトリよりも古い状態", "複数の変更が同時に行われ、Gitが自動的にどちらを採用すべきか判断できない状態", "誤ったコミットがローカルリポジトリに記録された状態"], answerIndex: 2, explanation: "コンフリクト（衝突）は、Gitが同一箇所の変更を自動解決できない場合に発生します。" },
+            
+            // 102. (問題4より) リポジトリ
+            { id: 102, difficulty: "初", question: "リポジトリについて、最も正しい説明を選択してください。", options: ["一時的な作業ディレクトリ", "アプリケーションに必要なすべてのファイルを格納するフォルダ", "アプリケーションに必要なすべてのファイルを格納するルートディレクトリとその履歴", "バックアップファイルの保存場所"], answerIndex: 2, explanation: "リポジトリは、ファイルの集まりだけでなく、それらのファイルの変更履歴（.gitディレクトリ）全体を含みます。" },
+            
+            // 103. (問題7より) ステージング（個別ファイル）
+            { id: 103, difficulty: "超初", question: "`first.txt`のみをステージングエリアに追加するコマンドを選択してください。", options: ["git add -a", "git add .", "git stage .", "git add first.txt"], answerIndex: 3, explanation: "特定のファイルをステージングエリアに追加するには、`git add <ファイル名>`を使用します。" },
+            
+            // 104. (問題8より) ブランチ作成
+            { id: 104, difficulty: "超初", question: "`testing`ブランチを作成するコマンドを選択してください。", options: ["git new branch testing", "git create testing", "git branch testing", "git checkout testing"], answerIndex: 2, explanation: "`git branch <ブランチ名>`は、新しいブランチを作成するコマンドです。これだけでは切り替えは行いません。" },
+            
+            // 105. (問題9より) ローカルブランチ削除
+            { id: 105, difficulty: "初", question: "ローカルリポジトリの`testing`ブランチを**マージ済み**として削除するコマンドを選択してください。", options: ["git drop testing", "git remove testing", "git branch --delete testing", "git branch -d testing"], answerIndex: 3, explanation: "`-d`または`--delete`オプションを使用します。" },
+            
+            // 106. (問題10より) 現在ブランチ確認
+            { id: 106, difficulty: "超初", question: "現在作業中のブランチを確認するコマンドを選択してください。", options: ["git status", "git check", "git current", "git branch"], answerIndex: 3, explanation: "`git branch`はブランチ一覧を表示し、アスタリスクで現在地を示します。" },
+    
+            // 107. (問題11より) リモートブランチ確認
+            { id: 107, difficulty: "初", question: "リモートブランチも含む、すべてのブランチの確認方法として正しいものを選択してください。", options: ["git remote branch", "git show remote", "git branch", "git branch -a"], answerIndex: 3, explanation: "`-a` (all) オプションは、ローカルとリモートのすべてのブランチを表示します。" },
+            
+            // 108. (問題12より) ブランチ切替
+            { id: 108, difficulty: "超初", question: "`testing`ブランチに切り替えるコマンドを選択してください。", options: ["git move testing", "git change testing", "git checkout testing", "git branch testing"], answerIndex: 2, explanation: "`git checkout`または`git switch`でブランチを切り替えます。" },
+            
+            // 109. (問題13より) クローン
+            { id: 109, difficulty: "超初", question: "リモートリポジトリからローカル環境にクローンするコマンドを選択してください。", options: ["git get <URL>", "git create <URL>", "git copy <URL>", "git clone <URL>"], answerIndex: 3, explanation: "`git clone`はリモートリポジトリを丸ごとローカルにコピーします。" },
+            
+            // 110. (問題14より) コミット
+            { id: 110, difficulty: "超初", question: "ステージングされた変更をローカルリポジトリに記録するためのコマンドを選択してください。", options: ["git record", "git push", "git save", "git commit"], answerIndex: 3, explanation: "コミットは履歴を記録する操作です。" },
+            
+            // 111. (問題15より) フェッチ
+            { id: 111, difficulty: "初", question: "リモートリポジトリの最新情報を**取得するだけ**のコマンドを選択してください。", options: ["git branch -u origin", "git branch sync", "git remote update", "git fetch"], answerIndex: 3, explanation: "`git fetch`はリモートの変更を取得しますが、ローカルブランチに統合しません。" },
+            
+            // 112. (問題16より) リポジトリ初期化
+            { id: 112, difficulty: "超初", question: "リポジトリを初期化するコマンドを選択してください。", options: ["git create", "git start", "git new", "git init"], answerIndex: 3, explanation: "ディレクトリをGitの管理下に置く最初のコマンドです。" },
+            
+            // 113. (問題17より) 管理ディレクトリ
+            { id: 113, difficulty: "超初", question: "リポジトリが初期化されると、作成されるディレクトリを選択してください", options: ["src", "tmp", ".git", ".repo"], answerIndex: 2, explanation: "Gitのすべての設定と履歴が格納される隠しフォルダです。" },
+            
+            // 114. (問題18より) 履歴閲覧
+            { id: 114, difficulty: "超初", question: "Gitのコミット履歴を閲覧するコマンドを選択してください。", options: ["git status", "git view", "git history", "git log"], answerIndex: 3, explanation: "`git log`はコミットの時系列履歴を表示します。" },
+            
+            // 115. (問題19より) マージ
+            { id: 115, difficulty: "初", question: "現在作業しているブランチに、`testing`ブランチの変更内容を統合するコマンドを選択してください。", options: ["git connect testing", "git join testing", "git combine testing", "git merge testing"], answerIndex: 3, explanation: "ブランチの統合には`git merge`を使用します。" },
+            
+            // 116. (問題20より) プル
+            { id: 116, difficulty: "初", question: "リモートリポジトリの`testing`ブランチの変更を、ローカルリポジトリに取り込むコマンドを選択してください。", options: ["git fetch origin testing", "git merge testing", "git get origin testing", "git pull origin testing"], answerIndex: 3, explanation: "`git pull`は、fetchとmergeを同時に行います。" },
+            
+            // 117. (問題21より) リモートブランチ削除
+            { id: 117, difficulty: "中", question: "リモートリポジトリの`testing`ブランチを削除するコマンドを選択してください。", options: ["git remote delete testing", "git branch -d origin/testing", "git remove origin testing", "git push origin -d testing"], answerIndex: 3, explanation: "リモートでの削除は、`git push`コマンドに`-d` (delete) オプションを付けて行います。" },
+            
+            // 118. (問題22より) プッシュ
+            { id: 118, difficulty: "超初", question: "ローカルリポジトリの修正を、「リモートリポジトリのmainブランチ」に反映するコマンドを選択してください。", options: ["git pull origin main", "git commit origin main", "git add", "git push origin main"], answerIndex: 3, explanation: "ローカルコミットをリモートに送信するのが`git push`です。" },
+            
+            // 119. (問題23より) リモート詳細
+            { id: 119, difficulty: "中", question: "`git remote show origin`で確認できる情報として最も正しいものを選択してください。", options: ["リモートのファイル一覧、コミット履歴、ブランチ情報", "ローカルの変更内容、ステージング状況、コミット履歴", "リモートのユーザー情報、権限設定、アクセス履歴", "リモートのURL、ブランチの追跡状況、プッシュ・プルの設定"], answerIndex: 3, explanation: "`git remote show`は、そのリモートに関する接続情報とブランチの関連性を詳細に表示します。" },
+            
+            // 120. (問題24より) ステータス
+            { id: 120, difficulty: "超初", question: "Gitリポジトリの現在の状態を確認するコマンドを選択してください。", options: ["git info", "git check", "git branch", "git status"], answerIndex: 3, explanation: "`git status`は、作業ディレクトリ、ステージングエリアの状態を報告します。" },
+            
+            // 121. (問題25より) 設定の優先順位
+            { id: 121, difficulty: "中", question: "Gitの設定が競合する場合（例：`user.name`）、どのように反映されますか。", options: ["エラーになり設定できない", "後から設定した内容が反映される", "適用範囲が広い設定が優先して反映される", "適用範囲が狭い設定が優先して反映される"], answerIndex: 3, explanation: "優先順位は、リポジトリローカル > ユーザーグローバル > システムの順で、最も狭い範囲（ローカル）の設定が優先されます。" },
+
+            // 122. (問題1より派生: 修正済)
+            { id: 122, difficulty: "超初", question: "ファイルを変更し保存したが、`git add`されていない状態を指す用語は？", options: ["コミット済", "ステージ済", "未追跡", "修正済 (Modified)"], answerIndex: 3, explanation: "Gitで追跡されているファイルが編集された状態です。" },
+
+            // 123. (問題1より派生: ステージ済)
+            { id: 123, difficulty: "超初", question: "修正済のファイルに、履歴として保存するための印（コミット準備）がついた状態を指す用語は？", options: ["コミット済", "修正済", "未追跡", "ステージ済 (Staged)"], answerIndex: 3, explanation: "`git add`が実行された後の状態で、次のコミットに含まれる内容です。" },
+
+            // 124. (問題1より派生: コミット済)
+            { id: 124, difficulty: "超初", question: "ステージ済のファイルの変更が、リポジトリの履歴として正式に記録された状態を指す用語は？", options: ["修正済", "ステージ済", "未追跡", "コミット済 (Committed)"], answerIndex: 3, explanation: "`git commit`が実行され、変更が恒久的な履歴の一部となった状態です。" },
+            
+            // 125. (問題3より派生: ブランチ作成と切替)
+            { id: 125, difficulty: "超初", question: "新しいブランチを作成し、**同時に**そのブランチに切り替えるコマンドは？", options: ["git branch -b testing", "git checkout testing", "git new testing", "git checkout -b testing"], answerIndex: 3, explanation: "作成と切り替えを同時に行うためのショートカットです。`git switch -c testing`も同義です。" }
+        // --- ここまで追加 ---
         ];
+        
 
         // DOM要素の取得
         const startScreen = document.getElementById('start-screen');
